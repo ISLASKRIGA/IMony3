@@ -199,8 +199,16 @@ function initializeSpeechRecognition() {
         return;
     }
 
-    // Only initialize once
-    if (recognitionInitialized && appState.recognition) {
+    // Mobile optimization: Force re-creation on Android to avoid stale state
+    if (window.innerWidth < 768) {
+        if (appState.recognition) {
+            try { appState.recognition.stop(); } catch (e) { }
+            appState.recognition = null;
+        }
+    }
+
+    // Only initialize once IF not on mobile (desktop can reuse)
+    if (window.innerWidth >= 768 && recognitionInitialized && appState.recognition) {
         console.log('✅ Speech recognition ya inicializado');
         return;
     }
@@ -215,7 +223,23 @@ function initializeSpeechRecognition() {
     appState.recognition.onstart = () => {
         appState.isListening = true;
         updateVoiceUI(true);
+        // Reset transcript
+        updateTranscript('');
+
+        const statusEl = document.getElementById('voice-modal-status');
+        if (statusEl) statusEl.textContent = 'Escuchando... (Habla ahora)';
+
         console.log('🎤 Escuchando...');
+    };
+
+    appState.recognition.onspeechstart = () => {
+        const statusEl = document.getElementById('voice-modal-status');
+        if (statusEl) statusEl.textContent = 'Detectando voz... 🗣️';
+    };
+
+    appState.recognition.onnomatch = () => {
+        const statusEl = document.getElementById('voice-modal-status');
+        if (statusEl) statusEl.textContent = 'No entendí, intenta de nuevo 😕';
     };
 
     appState.recognition.onresult = (event) => {
@@ -232,18 +256,21 @@ function initializeSpeechRecognition() {
 
     appState.recognition.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
+        const statusEl = document.getElementById('voice-modal-status');
 
         if (event.error === 'no-speech') {
-            console.log('No se detectó voz');
-            showNotification('🎤 No se detectó voz, intenta de nuevo', 'info');
+            if (statusEl) statusEl.textContent = 'No escuché nada 🔇';
+            showNotification('🎤 No se detectó voz, intenta hablar más fuerte', 'info');
         } else if (event.error === 'audio-capture') {
+            if (statusEl) statusEl.textContent = 'Error de micrófono 🚫';
             showNotification('❌ No se pudo acceder al micrófono', 'error');
         } else if (event.error === 'not-allowed') {
-            showNotification('🎤 Por favor permite el acceso al micrófono en tu navegador', 'error');
+            if (statusEl) statusEl.textContent = 'Permiso denegado 🔒';
+            showNotification('🎤 Por favor permite el acceso al micrófono', 'error');
             recognitionInitialized = false;
-        } else if (event.error === 'aborted') {
-            // Silently handle aborted errors
-            console.log('Recognition aborted');
+        } else if (event.error === 'network') {
+            if (statusEl) statusEl.textContent = 'Error de conexión 📡';
+            showNotification('⚠️ Se requiere internet para el reconocimiento', 'warning');
         }
 
         appState.isListening = false;
@@ -254,6 +281,12 @@ function initializeSpeechRecognition() {
         appState.isListening = false;
         updateVoiceUI(false);
         console.log('🎤 Reconocimiento finalizado');
+
+        // Reset status after a delay
+        setTimeout(() => {
+            const statusEl = document.getElementById('voice-modal-status');
+            if (statusEl && !appState.isListening) statusEl.textContent = 'Toca para hablar';
+        }, 2000);
     };
 
     recognitionInitialized = true;
