@@ -264,12 +264,6 @@ function startListening() {
     if (!appState.recognition) {
         console.log('Inicializando reconocimiento...');
         initializeSpeechRecognition();
-
-        // Wait a bit for initialization
-        setTimeout(() => {
-            startListening();
-        }, 100);
-        return;
     }
 
     if (appState.isListening) {
@@ -278,28 +272,29 @@ function startListening() {
     }
 
     try {
+        // Android Specific: stop any previous instance to clear the mic
+        if (window.innerWidth < 768 && appState.recognition) {
+            try { appState.recognition.abort(); } catch (e) { }
+        }
+
         appState.recognition.start();
         console.log('🎤 Iniciando reconocimiento...');
     } catch (error) {
         console.error('Error al iniciar reconocimiento:', error);
 
+        // Auto-fix for common Android "Started" state error
         if (error.name === 'InvalidStateError') {
-            // Recognition is already started, stop it first
             try {
                 appState.recognition.stop();
-            } catch (e) {
-                console.log('Could not stop recognition');
-            }
+            } catch (e) { }
 
+            // Re-try once after a minimal delay
             setTimeout(() => {
                 try {
                     appState.recognition.start();
-                } catch (e) {
-                    console.error('Error on retry:', e);
-                    // Reinitialize if needed
-                    recognitionInitialized = false;
-                    appState.recognition = null;
-                    initializeSpeechRecognition();
+                } catch (retryError) {
+                    console.error('Retry failed:', retryError);
+                    showNotification('Presiona el micrófono nuevamente', 'info');
                 }
             }, 100);
         }
