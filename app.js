@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadFromLocalStorage();
     initializeApp();
     setupEventListeners();
-    await requestMicrophonePermission();
+    // await requestMicrophonePermission(); // Disable auto-request
     initializeSpeechRecognition();
 });
 
@@ -1397,6 +1397,13 @@ function setupEventListeners() {
 
     // Voice modal
     document.getElementById('close-voice-modal')?.addEventListener('click', closeVoiceModal);
+    document.getElementById('voice-modal-circle')?.addEventListener('click', () => {
+        if (appState.isListening) {
+            stopListening();
+        } else {
+            startListening();
+        }
+    });
 
     // Settings
     document.getElementById('settings-btn')?.addEventListener('click', openSettingsModal);
