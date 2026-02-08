@@ -5,7 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IMony - Finanzas Personales Inteligentes</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=3.0">
+    <!-- ... (rest of head) ... -->
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
@@ -92,8 +94,9 @@
                 <div class="balance-label">Total</div>
                 <div class="balance-amount" id="balance-amount">$0</div>
                 <div class="balance-breakdown">
-                    <div class="balance-pill expenses" id="expenses-pill">- $0.00</div>
-                    <div class="balance-pill income" id="income-pill">$0.00</div>
+                    <div class="balance-pill expenses" id="expenses-pill" onclick="toggleTypeFilter('expense')">- $0.00
+                    </div>
+                    <div class="balance-pill income" id="income-pill" onclick="toggleTypeFilter('income')">$0.00</div>
                 </div>
             </div>
 
@@ -185,6 +188,28 @@
                 <div class="voice-modal-preview" id="voice-modal-preview"></div>
                 <div class="detected-transactions" id="detected-transactions"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal: Búsqueda -->
+    <!-- Bottom Search Bar (New Design) -->
+    <div id="search-bar-container" class="search-bar-container">
+        <div class="search-bar-wrapper">
+            <div class="search-input-box">
+                <input type="text" id="search-input" placeholder="Buscar" autocomplete="off">
+            </div>
+            <button class="search-close-btn" id="close-search-modal">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path d="M6 6L18 18" stroke="#1C1C1E" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+            </button>
+        </div>
+        <!-- Quick Tags Row -->
+        <div class="quick-tags-scroll" id="quick-tags-scroll">
+            <!-- Tags will be injected here -->
         </div>
     </div>
 
@@ -424,7 +449,8 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <!-- Script in body -->
+    <script src="app.js?v=3.0"></script>
 </body>
 
 </html>

@@ -17,7 +17,7 @@ echo.
 cd /d "%~dp0"
 
 REM Intentar con Python
-python -m http.server 8000 2>nul
+python server.py 8000 2>nul
 
 if %errorlevel% neq 0 (
     echo Python no encontrado. Intentando con Node.js...

@@ -20,37 +20,65 @@ let appState = {
         type: 'month', // 'month', 'year', 'all'
         year: new Date().getFullYear(),
         month: new Date().getMonth() // 0-11
-    }
+    },
+    typeFilter: 'all', // 'all', 'income', 'expense'
+    editingTransactionId: null // Track which transaction is being edited
 };
 
-// Helper to get filtered transactions
+// Helper to get filtered transactions (DATE ONLY)
 function getFilteredTransactions() {
-    if (appState.dateFilter.type === 'all') {
-        return appState.transactions;
+    let filtered = appState.transactions;
+
+    if (appState.dateFilter.type !== 'all') {
+        filtered = filtered.filter(t => {
+            const d = new Date(t.date);
+            if (d.getFullYear() !== appState.dateFilter.year) return false;
+            if (appState.dateFilter.type === 'month') {
+                return d.getMonth() === appState.dateFilter.month;
+            }
+            return true;
+        });
     }
 
-    return appState.transactions.filter(t => {
-        const d = new Date(t.date);
+    return filtered;
+}
 
-        // Filter by year always if type is year or month
-        if (d.getFullYear() !== appState.dateFilter.year) return false;
-
-        // Filter by month if type is month
-        if (appState.dateFilter.type === 'month') {
-            return d.getMonth() === appState.dateFilter.month;
-        }
-
-        return true;
-    });
+// Helper for type filtering (for the list view)
+function getTransactionsForList() {
+    let transactions = getFilteredTransactions();
+    if (appState.typeFilter !== 'all') {
+        transactions = transactions.filter(t => t.type === appState.typeFilter);
+    }
+    return transactions;
 }
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🚀 IMony App Initialized (v2.0)');
     loadFromLocalStorage();
+
+    // 🚨 SAFETY NET: If categories are empty/corrupt, force restore defaults
+    if (!appState.categories || appState.categories.length === 0) {
+        console.warn('⚠️ Categorías vacías detectadas. Restaurando valores por defecto...');
+        appState.categories = [
+            { id: 1, name: 'Compras', emoji: '🛍️', selected: true, color: '#5856D6' },
+            { id: 2, name: 'Ropa', emoji: '👔', selected: true, color: '#FF9500' },
+            { id: 3, name: 'Comer afuera', emoji: '🍔', selected: true, color: '#FF2D55' },
+            { id: 4, name: 'Lujo', emoji: '💎', selected: false, color: '#AF52DE' },
+            { id: 5, name: 'Auto', emoji: '🚗', selected: false, color: '#00C7BE' },
+            { id: 6, name: 'Mascotas', emoji: '🐶', selected: false, color: '#34C759' },
+            { id: 7, name: 'Transporte', emoji: '🚌', selected: true, color: '#5856D6' },
+            { id: 8, name: 'Salud', emoji: '💊', selected: false, color: '#FF9500' },
+            { id: 9, name: 'Entretenimiento', emoji: '🎮', selected: false, color: '#FF2D55' }
+        ];
+        saveToLocalStorage();
+    }
+
     initializeApp();
     setupEventListeners();
     // await requestMicrophonePermission(); // Disable auto-request
     initializeSpeechRecognition();
+    setupScrollDetection();
 });
 
 function initializeApp() {
@@ -136,6 +164,19 @@ function showScreen(screenName) {
         appState.currentScreen = screenName;
     }
 }
+
+// Global function to handle transaction editing - robust against event listener issues
+window.editTransaction = function (id) {
+    console.log('⚡ Global editTransaction called for ID:', id);
+    const transaction = appState.transactions.find(t => t.id == id);
+
+    if (transaction) {
+        openEditModal(transaction);
+    } else {
+        console.error('Transaction not found:', id);
+        showNotification('❌ Error: Transacción no encontrada', 'error');
+    }
+};
 
 // ===== CATEGORIES MANAGEMENT =====
 function renderCategories() {
@@ -1044,10 +1085,61 @@ function updateDashboard() {
     updateChart();
     updateCategoriesSummary();
     renderTransactionsList();
+    updatePillVisuals();
+    renderTransactionsList();
+}
+
+// Global function exposed for HTML access
+window.toggleTypeFilter = function (type) {
+    console.log('💊 Toggle Filter Clicked:', type);
+    if (appState.typeFilter === type) {
+        appState.typeFilter = 'all';
+    } else {
+        appState.typeFilter = type;
+    }
+    updatePillVisuals();
+    renderTransactionsList();
+};
+
+function updatePillVisuals() {
+    const expensePill = document.getElementById('expenses-pill');
+    const incomePill = document.getElementById('income-pill');
+
+    // Reset classes
+    expensePill.classList.remove('active', 'inactive');
+    incomePill.classList.remove('active', 'inactive');
+
+    if (appState.typeFilter === 'expense') {
+        expensePill.classList.add('active');
+        incomePill.classList.add('inactive');
+    } else if (appState.typeFilter === 'income') {
+        incomePill.classList.add('active');
+        expensePill.classList.add('inactive');
+    }
 }
 
 function updateBalance() {
-    const filteredTransactions = getFilteredTransactions();
+    let filteredTransactions = getFilteredTransactions();
+
+    // Apply search filter if active
+    if (appState.searchQuery && appState.searchQuery.trim() !== '') {
+        const cleanQuery = appState.searchQuery.trim().toLowerCase();
+        const isHashtagSearch = cleanQuery.startsWith('#');
+
+        filteredTransactions = filteredTransactions.filter(t => {
+            const desc = t.description.toLowerCase();
+            const catName = t.category?.name.toLowerCase() || '';
+
+            if (isHashtagSearch) {
+                return desc.includes(cleanQuery);
+            }
+
+            const tagVersion = '#' + cleanQuery;
+            return desc.includes(cleanQuery) ||
+                catName.includes(cleanQuery) ||
+                desc.includes(tagVersion);
+        });
+    }
 
     const expenses = filteredTransactions
         .filter(t => t.type === 'expense')
@@ -1204,13 +1296,41 @@ function renderTransactionsList() {
     const listContainer = document.getElementById('transactions-list');
     if (!listContainer) return;
 
-    const filteredTransactions = getFilteredTransactions();
+    let filteredTransactions = getTransactionsForList();
+
+    // Apply search filter if active
+    if (appState.searchQuery && appState.searchQuery.trim() !== '') {
+        const cleanQuery = appState.searchQuery.trim().toLowerCase();
+        const isHashtagSearch = cleanQuery.startsWith('#');
+
+        filteredTransactions = filteredTransactions.filter(t => {
+            const desc = t.description.toLowerCase();
+            const catName = t.category?.name.toLowerCase() || '';
+
+            // Strict Hashtag Mode
+            if (isHashtagSearch) {
+                return desc.includes(cleanQuery);
+            }
+
+            // Smart Mode: "ropa" matches "ropa", "ROPA", "#ropa", category "Ropa"
+            const tagVersion = '#' + cleanQuery;
+
+            return desc.includes(cleanQuery) ||
+                catName.includes(cleanQuery) ||
+                desc.includes(tagVersion);
+        });
+    }
 
     if (filteredTransactions.length === 0) {
+        const emptyMessage = appState.searchQuery
+            ? `No encontramos "${appState.searchQuery}"`
+            : 'No hay movimientos en este periodo';
+
         listContainer.innerHTML = `
             <div class="empty-state">
-                <div class="empty-icon">📅</div>
-                <p>No hay movimientos en este periodo</p>
+                <div class="empty-icon">�</div>
+                <p>${emptyMessage}</p>
+                ${appState.searchQuery ? '<small style="color: var(--text-tertiary); display: block; margin-top: 8px;">Intenta con otra palabra o etiqueta</small>' : ''}
             </div>
         `;
         return;
@@ -1250,33 +1370,84 @@ function createTransactionElement(transaction) {
         <div class="transaction-amount ${amountClass}">
             ${transaction.type === 'income' ? '+' : '-'} $${formattedAmount}
         </div>
+        <div class="edit-hint" style="font-size: 14px; margin-left: 10px;">✏️</div>
     `;
+
+    // Use robust HTML attribute for click handling
+    item.setAttribute('onclick', `editTransaction('${transaction.id}')`);
+    item.style.cursor = 'pointer';
 
     return item;
 }
 
 // ===== MANUAL TRANSACTION =====
+// ===== MANUAL TRANSACTION & EDITING =====
 function openManualModal() {
-    const modal = document.getElementById('manual-modal');
-    const categorySelect = document.getElementById('manual-category');
+    // Reset to "New Transaction" mode by default
+    appState.editingTransactionId = null;
+    document.querySelector('#manual-modal h2').textContent = 'Nueva transacción';
+    document.getElementById('save-manual-transaction').textContent = 'Guardar';
 
+    const modal = document.getElementById('manual-modal');
+    populateCategorySelect();
+    modal.classList.add('active');
+}
+
+function openEditModal(transaction) {
+    // Open modal first to populate categories
+    const modal = document.getElementById('manual-modal');
+    populateCategorySelect();
+    modal.classList.add('active');
+
+    // Set "Edit" mode
+    appState.editingTransactionId = transaction.id;
+    document.querySelector('#manual-modal h2').textContent = 'Editar transacción';
+    document.getElementById('save-manual-transaction').textContent = 'Actualizar';
+
+    // Fill values
+    document.getElementById('manual-amount').value = transaction.amount;
+    document.getElementById('manual-description').value = transaction.description;
+
+    if (transaction.category) {
+        document.getElementById('manual-category').value = transaction.category.id;
+    }
+
+    // Set Type
+    document.querySelectorAll('.type-btn').forEach(btn => {
+        if (btn.dataset.type === transaction.type) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+function populateCategorySelect() {
+    const categorySelect = document.getElementById('manual-category');
     categorySelect.innerHTML = '';
+
+    // Sort categories: selected ones first, then others if needed
+    // Currently we show all "selected" (visible) categories
     appState.categories.filter(c => c.selected).forEach(category => {
         const option = document.createElement('option');
         option.value = category.id;
         option.textContent = `${category.emoji} ${category.name}`;
         categorySelect.appendChild(option);
     });
-
-    modal.classList.add('active');
 }
 
 function closeManualModal() {
     const modal = document.getElementById('manual-modal');
     modal.classList.remove('active');
 
+    // Reset fields
     document.getElementById('manual-amount').value = '';
     document.getElementById('manual-description').value = '';
+
+    // Reset mode
+    appState.editingTransactionId = null;
+    document.querySelector('#manual-modal h2').textContent = 'Nueva transacción';
+    document.getElementById('save-manual-transaction').textContent = 'Guardar';
 }
 
 function saveManualTransaction() {
@@ -1297,19 +1468,37 @@ function saveManualTransaction() {
 
     const category = appState.categories.find(c => c.id === categoryId);
 
-    const transaction = {
-        id: Date.now(),
-        type: type,
-        amount: amount,
-        description: description,
-        category: category,
-        date: new Date().toISOString(),
-        method: 'manual'
-    };
+    if (appState.editingTransactionId) {
+        // Update existing transaction
+        const index = appState.transactions.findIndex(t => t.id === appState.editingTransactionId);
+        if (index !== -1) {
+            appState.transactions[index] = {
+                ...appState.transactions[index],
+                type: type,
+                amount: amount,
+                description: description,
+                category: category
+            };
+            saveToLocalStorage();
+            updateDashboard();
+            showNotification('✅ Transacción actualizada', 'success');
+        }
+    } else {
+        // Create new transaction
+        const transaction = {
+            id: Date.now(),
+            type: type,
+            amount: amount,
+            description: description,
+            category: category,
+            date: new Date().toISOString(),
+            method: 'manual'
+        };
+        addTransaction(transaction); // This already handles save and update
+        showNotification('✅ Transacción agregada', 'success');
+    }
 
-    addTransaction(transaction);
     closeManualModal();
-    showNotification('✅ Transacción agregada', 'success');
 }
 
 // ===== VOICE MODAL =====
@@ -1347,7 +1536,10 @@ function loadFromLocalStorage() {
     const saved = localStorage.getItem('appState');
     if (saved) {
         const data = JSON.parse(saved);
-        appState.categories = data.categories || appState.categories;
+        // Only load categories if they exist and are not empty
+        if (data.categories && data.categories.length > 0) {
+            appState.categories = data.categories;
+        }
         appState.transactions = data.transactions || [];
     }
 }
@@ -1383,9 +1575,18 @@ function setupEventListeners() {
     document.getElementById('voice-fab')?.addEventListener('click', openVoiceModal);
     document.getElementById('add-manual-btn')?.addEventListener('click', openManualModal);
 
+    // Search
+    document.getElementById('search-btn')?.addEventListener('click', openSearchModal);
+    document.getElementById('close-search-modal')?.addEventListener('click', closeSearchModal);
+    document.getElementById('search-input')?.addEventListener('input', handleSearchInput);
+
     // Manual modal
     document.getElementById('close-manual-modal')?.addEventListener('click', closeManualModal);
     document.getElementById('save-manual-transaction')?.addEventListener('click', saveManualTransaction);
+
+    // Balance Pills (Filters)
+    document.getElementById('expenses-pill')?.addEventListener('click', () => toggleTypeFilter('expense'));
+    document.getElementById('income-pill')?.addEventListener('click', () => toggleTypeFilter('income'));
 
     // Type selector
     document.querySelectorAll('.type-btn').forEach(btn => {
@@ -1835,11 +2036,111 @@ function applyPeriodFilter() {
     if (periodBtn) {
         if (appState.dateFilter.type === 'all') {
             periodBtn.textContent = 'Todo el tiempo';
-        } else if (appState.dateFilter.type === 'month') {
-            const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-            periodBtn.textContent = monthNames[appState.dateFilter.month];
         } else {
             periodBtn.textContent = appState.dateFilter.year;
         }
     }
+}
+
+// ===== SEARCH FUNCTIONALITY =====
+appState.searchQuery = '';
+
+function openSearchModal() {
+    const searchBar = document.getElementById('search-bar-container');
+    const dashboard = document.getElementById('dashboard-screen');
+
+    searchBar.classList.add('active');
+    dashboard.classList.add('search-active');
+
+    // Focus input
+    setTimeout(() => {
+        document.getElementById('search-input').focus();
+    }, 300);
+
+    renderPopularTags();
+}
+
+function closeSearchModal() {
+    const searchBar = document.getElementById('search-bar-container');
+    const dashboard = document.getElementById('dashboard-screen');
+
+    searchBar.classList.remove('active');
+    dashboard.classList.remove('search-active');
+
+    // Clear search
+    const input = document.getElementById('search-input');
+    input.value = '';
+    input.blur();
+
+    appState.searchQuery = ''; // Reset query
+    updateBalance(); // Update balance back to full view
+    renderTransactionsList(); // Reset list to full view
+}
+
+function handleSearchInput(e) {
+    const query = e.target.value.trim().toLowerCase();
+    appState.searchQuery = query;
+    updateBalance(); // Update balance in real-time
+    renderTransactionsList(); // Filter main list in real-time
+}
+
+function renderPopularTags() {
+    const container = document.getElementById('quick-tags-scroll');
+    if (!container) return;
+
+    // 1. Collect hashtags
+    const tagCounts = {};
+    appState.transactions.forEach(t => {
+        const matches = t.description.match(/#[a-zA-Z0-9_\-]+/g);
+        if (matches) {
+            matches.forEach(tag => {
+                const cleanTag = tag.toLowerCase();
+                tagCounts[cleanTag] = (tagCounts[cleanTag] || 0) + 1;
+            });
+        }
+    });
+
+    const sortedTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]);
+
+    container.innerHTML = '';
+
+    if (sortedTags.length === 0) {
+        return; // Don't show anything if no tags
+    }
+
+    sortedTags.forEach(tag => {
+        const chip = document.createElement('div');
+        chip.className = 'search-tag-chip';
+        chip.textContent = tag;
+        chip.addEventListener('click', () => {
+            const input = document.getElementById('search-input');
+            input.value = tag;
+            appState.searchQuery = tag;
+            updateBalance(); // Update balance when tag is clicked
+            renderTransactionsList();
+        });
+        container.appendChild(chip);
+    });
+}
+
+// ===== SCROLL DETECTION FOR STICKY BALANCE =====
+function setupScrollDetection() {
+    const dashboard = document.getElementById('dashboard-screen');
+
+    if (!dashboard) return;
+
+    let lastScrollTop = 0;
+
+    dashboard.addEventListener('scroll', () => {
+        const scrollTop = dashboard.scrollTop;
+
+        // Add 'scrolled' class when scrolled down more than 10px
+        if (scrollTop > 10) {
+            dashboard.classList.add('scrolled');
+        } else {
+            dashboard.classList.remove('scrolled');
+        }
+
+        lastScrollTop = scrollTop;
+    });
 }
