@@ -199,16 +199,8 @@ function initializeSpeechRecognition() {
         return;
     }
 
-    // Mobile optimization: Force re-creation on Android to avoid stale state
-    if (window.innerWidth < 768) {
-        if (appState.recognition) {
-            try { appState.recognition.stop(); } catch (e) { }
-            appState.recognition = null;
-        }
-    }
-
-    // Only initialize once IF not on mobile (desktop can reuse)
-    if (window.innerWidth >= 768 && recognitionInitialized && appState.recognition) {
+    // Only initialize once
+    if (recognitionInitialized && appState.recognition) {
         console.log('✅ Speech recognition ya inicializado');
         return;
     }
@@ -217,61 +209,21 @@ function initializeSpeechRecognition() {
     appState.recognition = new SpeechRecognition();
     appState.recognition.lang = 'es-MX';
     appState.recognition.continuous = false;
-
-    // CRITICAL FIX FOR ANDROID: Disable interim results on mobile
-    appState.recognition.interimResults = window.innerWidth >= 768;
-
+    appState.recognition.interimResults = true;
     appState.recognition.maxAlternatives = 3;
-
-    let speechWatchdog = null;
 
     appState.recognition.onstart = () => {
         appState.isListening = true;
         updateVoiceUI(true);
-        // Reset transcript
-        updateTranscript('');
-
-        const statusEl = document.getElementById('voice-modal-status');
-        if (statusEl) statusEl.textContent = 'Escuchando... (Habla ahora)';
-
         console.log('🎤 Escuchando...');
-
-        // Watchdog: Warn user if stuck in listening state
-        speechWatchdog = setTimeout(() => {
-            if (appState.isListening) {
-                const statusEl = document.getElementById('voice-modal-status');
-                if (statusEl) statusEl.textContent = '¿Estás ahí? No escucho nada... 👂';
-            }
-        }, 5000);
-    };
-
-    appState.recognition.onspeechstart = () => {
-        if (speechWatchdog) clearTimeout(speechWatchdog);
-        const statusEl = document.getElementById('voice-modal-status');
-        if (statusEl) statusEl.textContent = 'Detectando voz... 🗣️';
-    };
-
-    appState.recognition.onnomatch = () => {
-        const statusEl = document.getElementById('voice-modal-status');
-        if (statusEl) statusEl.textContent = 'No entendí, intenta de nuevo 😕';
     };
 
     appState.recognition.onresult = (event) => {
-        if (speechWatchdog) clearTimeout(speechWatchdog);
-
         const transcript = Array.from(event.results)
             .map(result => result[0].transcript)
             .join('');
 
-        // Update UI logic based on interim vs final
-        if (appState.recognition.interimResults) {
-            updateTranscript(transcript);
-        } else {
-            // On mobile (interim=false), we only get this at the very end
-            const statusEl = document.getElementById('voice-modal-status');
-            if (statusEl) statusEl.textContent = '¡Oído! Procesando... 🧠';
-            updateTranscript(transcript);
-        }
+        updateTranscript(transcript);
 
         if (event.results[0].isFinal) {
             processVoiceInput(transcript);
@@ -280,44 +232,32 @@ function initializeSpeechRecognition() {
 
     appState.recognition.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
-        const statusEl = document.getElementById('voice-modal-status');
 
         if (event.error === 'no-speech') {
-            if (statusEl) statusEl.textContent = 'No escuché nada 🔇';
-            showNotification('🎤 No se detectó voz, intenta hablar más fuerte', 'info');
+            console.log('No se detectó voz');
+            showNotification('🎤 No se detectó voz, intenta de nuevo', 'info');
         } else if (event.error === 'audio-capture') {
-            if (statusEl) statusEl.textContent = 'Error de micrófono 🚫';
             showNotification('❌ No se pudo acceder al micrófono', 'error');
         } else if (event.error === 'not-allowed') {
-            if (statusEl) statusEl.textContent = 'Permiso denegado 🔒';
-            showNotification('🎤 Por favor permite el acceso al micrófono', 'error');
+            showNotification('🎤 Por favor permite el acceso al micrófono en tu navegador', 'error');
             recognitionInitialized = false;
-        } else if (event.error === 'network') {
-            if (statusEl) statusEl.textContent = 'Error de conexión 📡';
-            showNotification('⚠️ Se requiere internet para el reconocimiento', 'warning');
+        } else if (event.error === 'aborted') {
+            // Silently handle aborted errors
+            console.log('Recognition aborted');
         }
 
-    }
+        appState.isListening = false;
+        updateVoiceUI(false);
+    };
 
-    appState.isListening = false;
-    updateVoiceUI(false);
-};
+    appState.recognition.onend = () => {
+        appState.isListening = false;
+        updateVoiceUI(false);
+        console.log('🎤 Reconocimiento finalizado');
+    };
 
-appState.recognition.onend = () => {
-    if (speechWatchdog) clearTimeout(speechWatchdog);
-    appState.isListening = false;
-    updateVoiceUI(false);
-    console.log('🎤 Reconocimiento finalizado');
-
-    // Reset status after a delay
-    setTimeout(() => {
-        const statusEl = document.getElementById('voice-modal-status');
-        if (statusEl && !appState.isListening) statusEl.textContent = 'Toca para hablar';
-    }, 2000);
-};
-
-recognitionInitialized = true;
-console.log('✅ Speech Recognition inicializado correctamente');
+    recognitionInitialized = true;
+    console.log('✅ Speech Recognition inicializado correctamente');
 }
 
 function startListening() {
