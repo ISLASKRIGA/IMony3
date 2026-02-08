@@ -217,8 +217,13 @@ function initializeSpeechRecognition() {
     appState.recognition = new SpeechRecognition();
     appState.recognition.lang = 'es-MX';
     appState.recognition.continuous = false;
-    appState.recognition.interimResults = true;
+
+    // CRITICAL FIX FOR ANDROID: Disable interim results on mobile
+    appState.recognition.interimResults = window.innerWidth >= 768;
+
     appState.recognition.maxAlternatives = 3;
+
+    let speechWatchdog = null;
 
     appState.recognition.onstart = () => {
         appState.isListening = true;
@@ -230,9 +235,18 @@ function initializeSpeechRecognition() {
         if (statusEl) statusEl.textContent = 'Escuchando... (Habla ahora)';
 
         console.log('🎤 Escuchando...');
+
+        // Watchdog: Warn user if stuck in listening state
+        speechWatchdog = setTimeout(() => {
+            if (appState.isListening) {
+                const statusEl = document.getElementById('voice-modal-status');
+                if (statusEl) statusEl.textContent = '¿Estás ahí? No escucho nada... 👂';
+            }
+        }, 5000);
     };
 
     appState.recognition.onspeechstart = () => {
+        if (speechWatchdog) clearTimeout(speechWatchdog);
         const statusEl = document.getElementById('voice-modal-status');
         if (statusEl) statusEl.textContent = 'Detectando voz... 🗣️';
     };
@@ -243,11 +257,21 @@ function initializeSpeechRecognition() {
     };
 
     appState.recognition.onresult = (event) => {
+        if (speechWatchdog) clearTimeout(speechWatchdog);
+
         const transcript = Array.from(event.results)
             .map(result => result[0].transcript)
             .join('');
 
-        updateTranscript(transcript);
+        // Update UI logic based on interim vs final
+        if (appState.recognition.interimResults) {
+            updateTranscript(transcript);
+        } else {
+            // On mobile (interim=false), we only get this at the very end
+            const statusEl = document.getElementById('voice-modal-status');
+            if (statusEl) statusEl.textContent = '¡Oído! Procesando... 🧠';
+            updateTranscript(transcript);
+        }
 
         if (event.results[0].isFinal) {
             processVoiceInput(transcript);
@@ -273,24 +297,27 @@ function initializeSpeechRecognition() {
             showNotification('⚠️ Se requiere internet para el reconocimiento', 'warning');
         }
 
-        appState.isListening = false;
-        updateVoiceUI(false);
-    };
+    }
 
-    appState.recognition.onend = () => {
-        appState.isListening = false;
-        updateVoiceUI(false);
-        console.log('🎤 Reconocimiento finalizado');
+    appState.isListening = false;
+    updateVoiceUI(false);
+};
 
-        // Reset status after a delay
-        setTimeout(() => {
-            const statusEl = document.getElementById('voice-modal-status');
-            if (statusEl && !appState.isListening) statusEl.textContent = 'Toca para hablar';
-        }, 2000);
-    };
+appState.recognition.onend = () => {
+    if (speechWatchdog) clearTimeout(speechWatchdog);
+    appState.isListening = false;
+    updateVoiceUI(false);
+    console.log('🎤 Reconocimiento finalizado');
 
-    recognitionInitialized = true;
-    console.log('✅ Speech Recognition inicializado correctamente');
+    // Reset status after a delay
+    setTimeout(() => {
+        const statusEl = document.getElementById('voice-modal-status');
+        if (statusEl && !appState.isListening) statusEl.textContent = 'Toca para hablar';
+    }, 2000);
+};
+
+recognitionInitialized = true;
+console.log('✅ Speech Recognition inicializado correctamente');
 }
 
 function startListening() {
