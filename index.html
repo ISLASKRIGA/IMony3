@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMony - Finanzas Personales Inteligentes</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <!-- Onboarding: Selección de Categorías -->
+    <div id="onboarding-screen" class="screen active">
+        <div class="container">
+            <h1 class="screen-title">Elige tus categorías</h1>
+            <p class="screen-subtitle">Selecciona las categorías que más uses</p>
+
+            <div class="categories-grid" id="categories-grid">
+                <!-- Las categorías se generarán dinámicamente -->
+            </div>
+
+            <div class="add-category-section">
+                <input type="text" id="new-category-input" placeholder="Añadir categoría" class="category-input">
+                <button id="add-category-btn" class="add-btn">+</button>
+            </div>
+
+            <button class="primary-btn" id="save-categories-btn">→ Guardar</button>
+        </div>
+    </div>
+
+    <!-- Pantalla de Entrada por Voz -->
+    <div id="voice-screen" class="screen">
+        <div class="container">
+            <h1 class="screen-title">Entrada de voz</h1>
+            <p class="screen-subtitle">Agrega transacciones con tu voz automáticamente</p>
+
+            <div class="voice-container">
+                <div class="voice-circle-wrapper">
+                    <div class="voice-circle" id="voice-circle">
+                        <div class="microphone-icon" id="mic-icon">🎤</div>
+                    </div>
+                    <div class="pulse-ring" id="pulse-ring"></div>
+                </div>
+
+                <div class="transaction-preview" id="transaction-preview">
+                    <div class="preview-emoji" id="preview-emoji">💰</div>
+                    <div class="preview-text" id="preview-text">Toca el micrófono para comenzar</div>
+                </div>
+
+                <div class="voice-transcript" id="voice-transcript"></div>
+
+                <div class="voice-examples">
+                    <p class="examples-title">Prueba decir:</p>
+                    <div class="example-chip">"Gasté 500 en hamburguesa y 200 en uber"</div>
+                    <div class="example-chip">"Pantalón 800 y zapatos 600"</div>
+                </div>
+            </div>
+
+            <div class="language-selector">
+                <span class="flag">🇲🇽</span>
+                <span>Idioma</span>
+                <button id="change-language-btn" class="text-btn">Cambiar</button>
+            </div>
+
+            <button class="primary-btn" id="continue-btn">→ Continuar</button>
+            <button class="secondary-btn" id="skip-voice-btn">Saltar</button>
+        </div>
+    </div>
+
+    <!-- Pantalla Principal: Dashboard -->
+    <div id="dashboard-screen" class="screen">
+        <div class="container">
+            <!-- Header -->
+            <div class="dashboard-header">
+                <div class="period-selector">
+                    <button id="period-btn" class="period-dropdown">Este mes</button>
+                    <span class="divider">en</span>
+                    <select id="list-select" class="period-dropdown">
+                        <option value="personal" selected>Lista privada</option>
+                        <option value="shared">Lista compartida</option>
+                    </select>
+                </div>
+                <button class="settings-btn" id="settings-btn">⚙️</button>
+            </div>
+
+            <!-- Balance Total -->
+            <div class="balance-section">
+                <div class="balance-label">Total</div>
+                <div class="balance-amount" id="balance-amount">$0</div>
+                <div class="balance-breakdown">
+                    <div class="balance-pill expenses" id="expenses-pill">- $0.00</div>
+                    <div class="balance-pill income" id="income-pill">$0.00</div>
+                </div>
+            </div>
+
+            <!-- Gráfica de Gastos por Categoría -->
+            <div class="chart-section" id="chart-section">
+                <div class="chart-container" id="chart-container">
+                    <!-- Las barras se generarán dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Categorías Resumen (Horizontal Scroll) -->
+            <div class="categories-summary" id="categories-summary">
+                <!-- Se generará dinámicamente -->
+            </div>
+
+            <!-- Sección de Transacciones -->
+            <div class="transactions-section">
+                <div class="transactions-header">
+                    <h3>Hoy</h3>
+                </div>
+                <div class="transactions-list" id="transactions-list">
+                    <div class="empty-state">
+                        <div class="empty-icon">📊</div>
+                        <p>No hay transacciones aún</p>
+                        <p class="empty-subtitle">Usa el micrófono para agregar tu primera transacción</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="action-buttons">
+                <button class="icon-btn" id="add-manual-btn">
+                    <span class="icon">+</span>
+                </button>
+                <button class="icon-btn" id="search-btn">
+                    <span class="icon">🔍</span>
+                </button>
+                <button class="voice-fab" id="voice-fab">
+                    <span class="icon">🎤</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Agregar Transacción Manual -->
+    <div id="manual-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nueva transacción</h2>
+                <button class="close-btn" id="close-manual-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <div class="type-selector">
+                        <button class="type-btn active" data-type="expense">Gasto</button>
+                        <button class="type-btn" data-type="income">Ingreso</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Monto</label>
+                    <input type="number" id="manual-amount" placeholder="0.00" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <input type="text" id="manual-description" placeholder="Ej: Hamburguesa" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Categoría</label>
+                    <select id="manual-category" class="form-input">
+                        <!-- Se llenará dinámicamente -->
+                    </select>
+                </div>
+                <button class="primary-btn" id="save-manual-transaction">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Reconocimiento de Voz -->
+    <div id="voice-modal" class="modal">
+        <div class="modal-content voice-modal-content">
+            <button class="close-btn" id="close-voice-modal">×</button>
+            <div class="modal-body">
+                <div class="voice-modal-circle" id="voice-modal-circle">
+                    <div class="microphone-icon-large">🎤</div>
+                </div>
+                <div class="voice-modal-status" id="voice-modal-status">Escuchando...</div>
+                <div class="voice-modal-transcript" id="voice-modal-transcript"></div>
+                <div class="voice-modal-preview" id="voice-modal-preview"></div>
+                <div class="detected-transactions" id="detected-transactions"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Configuración (Bottom Sheet) -->
+    <div id="settings-modal" class="bottom-sheet-modal">
+        <div class="bottom-sheet-content">
+            <div class="bottom-sheet-handle"></div>
+            <div class="bottom-sheet-header">
+                <h2>Configuración</h2>
+                <button class="close-btn" id="close-settings-modal">×</button>
+            </div>
+
+            <div class="bottom-sheet-body">
+                <div class="settings-section-title">Contenido</div>
+
+                <!-- Editar categorías -->
+                <div class="settings-item" id="edit-categories-btn">
+                    <div class="settings-icon">🥑</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Editar categorías</div>
+                        <div class="settings-sublabel">En tu lista actual "Lista privada"</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Editar etiquetas -->
+                <div class="settings-item" id="edit-tags-btn">
+                    <div class="settings-icon">#</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Editar etiquetas</div>
+                        <div class="settings-sublabel">En tu lista actual "Lista privada"</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Lista de transacciones recurrentes -->
+                <div class="settings-item" id="recurring-transactions-btn">
+                    <div class="settings-icon">🔄</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Lista de transacciones recurrentes</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Tus listas -->
+                <div class="settings-item" id="your-lists-btn">
+                    <div class="settings-icon">📝</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Tus listas</div>
+                        <div class="settings-badge">14</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Compartir lista -->
+                <div class="settings-item" id="share-list-btn">
+                    <div class="settings-icon">👥</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Compartir lista</div>
+                        <div class="settings-sublabel">Lista privada</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Exportar CSV -->
+                <div class="settings-item" id="export-csv-btn">
+                    <div class="settings-icon">📊</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Exportar CSV</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Importar CSV -->
+                <div class="settings-item" id="import-csv-btn">
+                    <div class="settings-icon">📥</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Importar CSV</div>
+                        <div class="settings-sublabel">Actualmente solo se admiten CSVs exportados desde MonAi</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Idioma de entrada de voz -->
+                <!-- Sección: Idioma y región -->
+                <div class="settings-section-title">Idioma y región</div>
+
+                <!-- Idioma de entrada de voz -->
+                <div class="settings-item" id="language-selector-btn">
+                    <div class="settings-icon">🎤</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Idioma de entrada de voz</div>
+                        <div class="settings-sublabel" id="current-language-label">Español (México)</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Moneda -->
+                <div class="settings-item" id="currency-btn">
+                    <div class="settings-icon">💵</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Moneda</div>
+                        <div class="settings-sublabel">$</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Convertidor de moneda -->
+                <div class="settings-item" id="currency-converter-btn">
+                    <div class="settings-icon">📈</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Convertidor de moneda</div>
+                        <div class="settings-sublabel">No hay conversión automática activa en este momento.</div>
+                    </div>
+                </div>
+
+                <!-- Sección: Más -->
+                <div class="settings-section-title">Más</div>
+
+                <!-- Premium -->
+                <div class="settings-item" id="premium-btn">
+                    <div class="settings-icon">💎</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Premium</div>
+                        <div class="settings-sublabel">Activa</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Apariencia -->
+                <div class="settings-item" id="appearance-btn">
+                    <div class="settings-icon">🌚</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Apariencia</div>
+                        <div class="settings-sublabel">Define cómo se ve tu app</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Novedades -->
+                <div class="settings-item" id="changelog-btn">
+                    <div class="settings-icon">🆕</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Novedades</div>
+                        <div class="settings-sublabel">1.7.0 (121)</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Reseña -->
+                <div class="settings-item" id="review-btn">
+                    <div class="settings-icon">⭐</div>
+                    <div class="settings-info">
+                        <div class="settings-label">¿Te gusta IMony?</div>
+                        <div class="settings-sublabel">¿Nos dejarías una reseña? 🥹</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <!-- Notificaciones (Toggle) -->
+                <div class="settings-item toggle-item">
+                    <div class="settings-icon">🔔</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Permitir notificaciones</div>
+                        <div class="settings-sublabel">Garantizado sin spam</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="notifications-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Seguimiento automático -->
+                <div class="settings-item" id="auto-tracking-btn">
+                    <div class="settings-icon">�</div>
+                    <div class="settings-info">
+                        <div class="settings-label">Seguimiento automático de transacciones...</div>
+                        <div class="settings-sublabel">Así funciona</div>
+                    </div>
+                    <div class="settings-arrow">›</div>
+                </div>
+
+                <div class="settings-section-title">Preferencias</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Selección de Idioma -->
+    <div class="bottom-sheet-modal" id="language-modal">
+        <div class="bottom-sheet-content">
+            <div class="bottom-sheet-handle"></div>
+            <div class="bottom-sheet-header">
+                <h2>Idioma de entrada de voz</h2>
+                <button class="close-btn" id="close-language-modal">×</button>
+            </div>
+            <div class="bottom-sheet-body">
+                <div class="language-list" id="language-list">
+                    <!-- Los idiomas se generarán dinámicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Period Selector Modal (Bottom Sheet) -->
+    <div id="period-modal" class="modal-overlay">
+        <div class="modal-content bottom-sheet">
+            <div class="modal-header">
+                <h2 class="modal-title">Mes</h2>
+                <button class="close-modal-btn" id="close-period-modal">✕</button>
+            </div>
+
+            <div class="period-type-wrapper">
+                <div class="period-type-toggle">
+                    <button class="toggle-option active" id="filter-all-time">Todo el tiempo</button>
+                    <button class="toggle-option" id="filter-year">2026</button>
+                    <!-- Hidden input to store selected year -->
+                    <input type="number" id="year-selector" value="2026" style="display:none;">
+                </div>
+            </div>
+
+            <div class="months-grid" id="months-grid">
+                <button class="month-btn" data-month="0">Ene</button>
+                <button class="month-btn" data-month="1">Feb</button>
+                <button class="month-btn" data-month="2">Mar</button>
+                <button class="month-btn" data-month="3">Abr</button>
+                <button class="month-btn" data-month="4">May</button>
+                <button class="month-btn" data-month="5">Jun</button>
+                <button class="month-btn" data-month="6">Jul</button>
+                <button class="month-btn" data-month="7">Ago</button>
+                <button class="month-btn" data-month="8">Sep</button>
+                <button class="month-btn" data-month="9">Oct</button>
+                <button class="month-btn" data-month="10">Nov</button>
+                <button class="month-btn" data-month="11">Dic</button>
+            </div>
+
+            <button class="primary-btn apply-btn" id="apply-period-btn">✓ Aplicar</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
